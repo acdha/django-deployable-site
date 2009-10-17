@@ -1,7 +1,9 @@
 <!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
 <html>
   <head>
-    <title>Easily deployable Django sites using RPM</title>
+    <title>
+      Easily deployable Django sites using RPM
+    </title>
   </head>
   <body>
     <h2>
@@ -56,31 +58,33 @@
       </li>
       <li>Apache configuration is split into a separate common configuration (e.g. WSGI config, media expiration, etc) designed to be included by a server-specific file which specifies things like hostnames, SSL config, etc.:
         <pre>
-&lt;VirtualHost example.org:80&gt;
-    ServerName example.org
+        &lt;VirtualHost example.org:80&gt;
+        ServerName example.org
 
-    ErrorLog logs/<i>my_app</i>.errors.log
-    CustomLog logs/<i>my_app</i>.access.log combined
-    LogLevel info
+        ErrorLog logs/<i>my_app</i>.errors.log
+        CustomLog logs/<i>my_app</i>.access.log combined
+        LogLevel info
 
-    SSLEngine on
-    SSLProtocol all -SSLv2
-    SSLCipherSuite ALL:!ADH:!EXPORT56:+HIGH:+SSLv3:+TLSv1
-    SSLCertificateFile "/etc/httpd/ssl.crt/<i>my_app</i>.crt"
-    SSLCertificateKeyFile "/etc/httpd/ssl.key/<i>my_app</i>.key"
+        SSLEngine on
+        SSLProtocol all -SSLv2
+        SSLCipherSuite ALL:!ADH:!EXPORT56:+HIGH:+SSLv3:+TLSv1
+        SSLCertificateFile "/etc/httpd/ssl.crt/<i>my_app</i>.crt"
+        SSLCertificateKeyFile "/etc/httpd/ssl.key/<i>my_app</i>.key"
 
-    <b>Include /opt/<i>my_app</i>/deploy/apache_common.conf</b>
-&lt;/VirtualHost&gt;
-    
+        <b>Include /opt/<i>my_app</i>/deploy/apache_common.conf</b>
+        &lt;/VirtualHost&gt;
+
+
 </pre>
       </li>
       <li>Django customization is managed by a local_settings.py file which is imported by settings.py.
         <pre class="code python">
-try:
-    import local_settings
-except ImportError:
-    logging.warning("No local settings - running in development mode")
-    
+        try:
+        import local_settings
+        except ImportError:
+        logging.warning("No local settings - running in development mode")
+
+
 </pre>This is where you put things like database username and password, production email contact addresses, etc.
       </li>
     </ul>
@@ -125,5 +129,36 @@ except ImportError:
       <li>The <code>%post</code> and <code>%install</code> sections can contain arbitrary shell scripts, allowing you to do things like run `manage.py syncdb`, push updated schema to Solr, etc. If this gets too complicated I recommend writing a Python program or <a href="http://docs.djangoproject.com/en/dev/howto/custom-management-commands/">Django management command</a> which does the actual work.
       </li>
     </ul>
+    <div style="font-size: 10px; text-align: left;">
+      <a class="dsq-comment-count" href="http://acdha.tumblr.com/post/214894889/deploying-django-sites-using-rpm#disqus_thread">Comments</a>
+    </div>
+    <div id="disqus_thread"></div>
+    <div>
+      <script type="text/javascript" src="http://disqus.com/forums/improbable/embed.js"></script>
+      <noscript>
+        <p> <a href="http://improbable.disqus.com/?url=ref">View the discussion thread.</a> </p>
+      </noscript>
+      <p>
+        <a href="http://disqus.com" class="dsq-brlink">blog comments powered by <span class="logo-disqus">Disqus</span></a>
+      </p>
+    </div><script type="text/javascript">
+//<![CDATA[
+    (function() {
+      var links = document.getElementsByTagName('a');
+      var query = '?';
+      for(var i = 0; i < links.length; i++) {
+        if(links[i].href.indexOf('#disqus_thread') >= 0) {
+          query += 'url' + i + '=' + encodeURIComponent(links[i].href) + '&';
+        }
+      }
+
+      dq_script = document.createElement("script");
+      dq_script.charset="utf-8";
+      dq_script.type="text/javascript";
+      dq_script.src="http://disqus.com/forums/improbable/get_num_replies.js" + query;
+      document.body.appendChild(dq_script);
+      })();
+      //]]>
+    </script>
   </body>
 </html>
