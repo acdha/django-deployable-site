@@ -1,0 +1,129 @@
+<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.01//EN">
+<html>
+  <head>
+    <title>Easily deployable Django sites using RPM</title>
+  </head>
+  <body>
+    <h2>
+      Why?
+    </h2>
+    <p>
+      <a href="http://www.djangoproject.com">Django</a> is a great framework for developing websites but as with most projects there isn't a particular focus on the system administration side of running a real site. There are <a href="http://www.djangobook.com/en/2.0/chapter12/">great</a> <a href="http://docs.djangoproject.com/en/dev/howto/deployment/">instructions</a> describing the source-level changes you'll want to make and what you'll need to configure your webserver to do but … what about afterwards?
+    </p>
+    <p>
+      The process of deploying any site has a few basic steps: update the code, apply any database changes and reload the running site. How people choose to do this varies wildly but in the Python world it tends to involve a lot of manual work setting up the Python environment and running commands by hand or using a tool such as <a href="http://fabfile.org/">Fabric</a> or <a href="http://www.buildout.org/">Buildout</a> to run those commands for you.
+    </p>
+    <p>
+      This approach works but it has a few drawbacks:
+    </p>
+    <ul>
+      <li>If you're installing anything which uses a native library (images, databases, clients for things like memcache, etc.) you'll need install a ton of extra dependencies on your production servers: gcc, development headers, etc.
+      </li>
+      <li>It's extremely slow compared to normal Linux software installation
+      </li>
+      <li>You're exposed to failures in outside services such as PyPI, Sourceforge, Github, Bitbucket, etc. This can be a problem if you can't download the package and disastrous if the upstream source has updated to a newer version which you haven't tested
+      </li>
+      <li>Adding a second server requires you to duplicate everything, which is time consuming, and you then have to apply your changes in lockstep across every server to avoid requests being processed depending on which server handles the request
+      </li>
+      <li>It's hard to tell in advance what you'll need to install an application unless you tediously compare the installed dependencies on a known-working server
+      </li>
+      <li>You can have silent failures which only show up in production - the classic example being the Python Imaging Library, which can install “successfully” without optional components like JPEG support if it fails to detect them, which will only show up the first time someone attempts to use a JPEG file with your site.
+      </li>
+    </ul>
+    <p>
+      None of these are new problems - in fact, the BSD and Linux communities have been working on <a href="%E2%80%9Chttp://en.wikipedia.org/wiki/Package_management_system%E2%80%9D">package managers</a> for the last decade or two, which is why you can install a brand new Linux system with hundreds of applications in less time than it takes to bring a large Python website up on a new server.
+    </p>
+    <h2>
+      How
+    </h2>
+    <h3>
+      Structuring the application
+    </h3>
+    <p>
+      A well-behaved application is going to do a few things:
+    </p>
+    <ul>
+      <li>Install in a well-defined location not used by other applications - i.e. /opt/<i>my_app</i> rather than /var/www/html.
+      </li>
+      <li>Provide a clean way to customize your app with server-specific settings (e.g. file locations, database info, etc.) which doesn't involve editing the packaged files - otherwise they'll be overwritten on the next release. This also makes it easy to cleanly install the same package on development, test, and production servers.
+      </li>
+    </ul>
+    <p>
+      For Django apps, I'm using the following conventions:
+    </p>
+    <ul>
+      <li>Everything installs in /opt/<i>my_app</i> - this includes a <a href="http://pypi.python.org/pypi/virtualenv">virtualenv</a> which is pre-loaded with our dependencies, avoiding the possibility of conflicts between projects. Want to have a Django 1.1 app installed on the same server as an older Django 1.0 app? This makes that easy.
+      </li>
+      <li>Apache configuration is split into a separate common configuration (e.g. WSGI config, media expiration, etc) designed to be included by a server-specific file which specifies things like hostnames, SSL config, etc.:
+        <pre>
+&lt;VirtualHost example.org:80&gt;
+    ServerName example.org
+
+    ErrorLog logs/<i>my_app</i>.errors.log
+    CustomLog logs/<i>my_app</i>.access.log combined
+    LogLevel info
+
+    SSLEngine on
+    SSLProtocol all -SSLv2
+    SSLCipherSuite ALL:!ADH:!EXPORT56:+HIGH:+SSLv3:+TLSv1
+    SSLCertificateFile "/etc/httpd/ssl.crt/<i>my_app</i>.crt"
+    SSLCertificateKeyFile "/etc/httpd/ssl.key/<i>my_app</i>.key"
+
+    <b>Include /opt/<i>my_app</i>/deploy/apache_common.conf</b>
+&lt;/VirtualHost&gt;
+    
+</pre>
+      </li>
+      <li>Django customization is managed by a local_settings.py file which is imported by settings.py.
+        <pre class="code python">
+try:
+    import local_settings
+except ImportError:
+    logging.warning("No local settings - running in development mode")
+    
+</pre>This is where you put things like database username and password, production email contact addresses, etc.
+      </li>
+    </ul>
+    <h3>
+      Building an RPM
+    </h3>
+    <ol>
+      <li>
+        <a href="http://www.jasonlitka.com/2007/05/21/setting-up-an-rpm-build-environment/">Setup your RPM build environment</a>
+      </li>
+      <li>Create your specfile (<a href="#specfile">see below</a>) in SPECS/my_site.spec
+      </li>
+      <li>Create source archives for everything you need to install: this be as simple as downloading a tarfile from the library provider or creating your own from your version control system:
+        <ul>
+          <li>Git archive:<br>
+            <code>git archive --format=tar --prefix=<i>my_app</i>-<i>1.0</i>/ <i>my_app</i>-<i>1.0</i> | gzip -9 &gt; ~/rpmbuild/SOURCES/<i>my_app</i>-1.0.tar.gz</code>
+          </li>
+          <li>Subversion:<br>
+            <code>svn export . /tmp/my_package<br>
+            tar -C /tmp -cjf ~/rpmbuild/SOURCES/my_app.tar.bz2</code>
+          </li>
+        </ul>
+      </li>
+      <li>Now you're ready to compile the actual RPM:<br>
+        <code>rpmbuild -ba --clean SPECS/<i>my_site</i>.spec</code>
+      </li>
+      <li>Install the RPM on your test server
+      </li>
+    </ol>
+    <p>
+      If you want to see what files your RPM will install, use RPM's query options: <code>rpm -q --fileprovide -p RPMS/noarch/my_site.rpm</code>
+    </p>
+    <p>
+      For future releases the process is simple: update the specfile if you've changed your dependencies (add, remove, change versions, etc.) and recompile.
+    </p>
+    <p>
+      Here's an <a title="django-deployable-site on Github" href="http://github.com/acdha/django-deployable-site/tree/">example project</a> containing an RPM specfile and the general recommended site structure. There are a few key things you will want to customize:
+    </p>
+    <ul>
+      <li>Set dependencies for any libraries which you need, particularly if there are version requirements - that way RPM won't allow you to install the site if the installed Postgres client is older than you want.
+      </li>
+      <li>The <code>%post</code> and <code>%install</code> sections can contain arbitrary shell scripts, allowing you to do things like run `manage.py syncdb`, push updated schema to Solr, etc. If this gets too complicated I recommend writing a Python program or <a href="http://docs.djangoproject.com/en/dev/howto/custom-management-commands/">Django management command</a> which does the actual work.
+      </li>
+    </ul>
+  </body>
+</html>
